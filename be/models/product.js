@@ -22,13 +22,13 @@ const ProductSchema = mongoose.Schema(
       type: String,
       required: true,
     },
-    attributes: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Attributes",
-        required: true,
-      },
-    ],
+    // attributes: [
+    //   {
+    //     type: mongoose.Schema.Types.ObjectId,
+    //     ref: "Attributes",
+    //     required: true,
+    //   },
+    // ],
     quantity: {
       type: Number,
       default: 1,
@@ -45,10 +45,10 @@ const ProductSchema = mongoose.Schema(
       type: Number,
       default: 0,
     },
-    category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
-    },
+    // category: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: "Category",
+    // },
     tags: [String],
     sku: {
       type: String,
