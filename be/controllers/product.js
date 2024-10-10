@@ -1,105 +1,137 @@
-import Product from "../models/product.js";
-
-// Hàm để thêm một sản phẩm mới
+import { StatusCodes } from "http-status-codes";
+import slugify from "slugify";
+import Product from "../models/product";
+import { productSchema } from "../utils/validators/product";
 export const createProduct = async (req, res) => {
   try {
-    const { name, productAttributes } = req.body;
+    // Xác thực dữ liệu đầu vào
+    const { error, value } = productSchema.validate(req.body);
+    if (error) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: error.details[0].message });
+    }
+
+    const { name } = value;
 
     // Kiểm tra xem sản phẩm với tên này đã tồn tại chưa
     const existingProduct = await Product.findOne({ name });
     if (existingProduct) {
-      return res.status(400).json({
-        message: "San pham da ton tai",
-      });
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Sản phẩm với tên này đã tồn tại" });
     }
 
-    // // Tìm các thuộc tính sản phẩm dựa trên danh sách ID
-    // const attributes = await Attribute.find({
-    //   _id: { $in: productAttributes },
-    // });
-    // // Kiểm tra xem tất cả các thuộc tính có tồn tại không
-    // if (attributes.length !== productAttributes.length) {
-    //   return res.status(400).json({
-    //     message: "Mot hoac nhieu thuoc tinh khong tim thay",
-    //   });
+    // const productAttributes = await Attribute.find({ _id: { $in: attributes } });
+    // if (productAttributes.length !== attributes.length) {
+    //     return res
+    //         .status(StatusCodes.BAD_REQUEST)
+    //         .json({ message: "Một hoặc nhiều thuộc tính không tìm thấy" });
     // }
-    // Tạo sản phẩm mới với dữ liệu từ request body
-    const product = await Product.create(req.body);
-    // Trả về phản hồi thành công với mã trạng thái 201 và dữ liệu sản phẩm mới
-    res.status(201).json(product);
-  } catch (error) {
-    // Xử lý lỗi và trả về phản hồi lỗi với mã trạng thái 400
-    res.status(400).json({ message: error.message });
-  }
-};
 
-// Lấy danh sách sản phẩm với phân trang
-export const getProducts = async (req, res) => {
-  try {
-    const { page = 1, limit = 10 } = req.query;
-    const options = {
-      page: parseInt(page, 10),
-      limit: parseInt(limit, 10),
-    };
+    // Tạo slug từ tên sản phẩm
+    const slug = slugify(name, { lower: true });
 
-    const products = await Product.paginate({}, options);
-    res.status(200).json(products);
+    const product = await Product.create({ ...value, slug });
+    res.status(StatusCodes.CREATED).json(product);
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
+    res.status(StatusCodes.BAD_REQUEST).json({ message: error.message });
   }
 };
 
 export const getProductById = async (req, res) => {
   try {
-    const { id } = req.params; // lấy ID sản phẩm từ URL params
-    const { _embed } = req.query; // lấy thông tin các trường cần populate từ query params
-    let query = Product.findById(id); // Tạp query để tìm sản phẩm theo ID
+    const { id } = req.params;
+    const { _embed } = req.query;
 
-    // Nếu có yêu cầu populate các trường liên quan
+    const product = await Product.findById(id).populate(
+      _embed ? _embed.split(",") : []
+    );
+    if (!product) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ message: "Sản phẩm không tồn tại" });
+    }
+
+    res.status(StatusCodes.OK).json(product);
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: error.message });
+  }
+};
+
+export const getProducts = async (req, res) => {
+  try {
+    const { _page = 1, _limit = 10, _embed } = req.query;
+    const options = {
+      page: parseInt(_page, 10),
+      limit: parseInt(_limit, 10),
+    };
+
+    let query = Product.find();
+
     if (_embed) {
-      const embed = _embed.split(","); // tách các trường cần populate thành mảng
-      embed.forEach((embed) => {
-        query = query.populate(embed); // Thêm các trường cần populate vào query
+      const embeds = _embed.split(",");
+      embeds.forEach((embed) => {
+        query = query.populate(embed);
       });
     }
 
-    const product = await query.exec(); // Thực thi query để lấy thông tin sản phẩm
-    if (!product) {
-      return res.status(404).json({ message: "Không tìm thấy sản phẩm " }); // trả về lỗi nếu không tìm thấy sản phẩm
-    }
-    res.status(200).json(product); // trả về thông tin sản phẩm nếu tìm thấy
+    const result = await Product.paginate(query, options);
+    const { docs, ...paginationData } = result; // Loại bỏ trường docs
+
+    return res.status(StatusCodes.OK).json({
+      products: docs,
+      ...paginationData,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message }); // Xử lý lỗi và trả về phản hồi lỗi
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: error.message });
   }
 };
 
+// Cập nhật một sản phẩm theo ID
 export const updateProduct = async (req, res) => {
   try {
-    const { id } = req.params; // lấy ID sản phẩm từ URL params
-    const product = await Product.findByIdAndUpdate(id, req.body, {
-      new: true, // trả về sản phẩm mới sau khi cập nhật
-      runValidators: true, // chạy các validators đã định nghĩa trong schema
+    // Xác thực dữ liệu đầu vào
+    const { error, value } = productSchema.validate(req.body);
+    if (error) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: error.details[0].message });
+    }
+
+    const { id } = req.params;
+    const product = await Product.findByIdAndUpdate(id, value, {
+      new: true,
     });
     if (!product) {
-      return res.status(404).json({ message: "Không tìm thấy sản phẩm nào" });
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ message: "Không tìm thấy sản phẩm nào" });
     }
-    res.status(200).json(product);
+    res.status(StatusCodes.OK).json(product);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(StatusCodes.BAD_REQUEST).json({ message: error.message });
   }
 };
 
+// Xóa một sản phẩm theo ID
 export const deleteProduct = async (req, res) => {
   try {
-    const { id } = req.params; // lấy ID sản phẩm từ URL params
+    const { id } = req.params;
     const product = await Product.findByIdAndDelete(id);
     if (!product) {
-      return res.status(404).json({ message: "Không tìm thấy sản phẩm nào" });
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ message: "Không tìm thấy sản phẩm nào" });
     }
-    res.status(200).json({ message: "Xóa sản phẩm thành công" });
+    res.status(StatusCodes.OK).json({ message: "Xóa sản phẩm thành công" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: error.message });
   }
 };

@@ -1,14 +1,13 @@
-import mongoose, { version } from "mongoose";
+import mongoose from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
-import slugify from "slugify";
 
-const ProductSchema = mongoose.Schema(
+const ProductSchema = new mongoose.Schema(
   {
     name: {
       type: String,
       required: true,
       minlength: 3,
-      unique: true,
+      unique: true, // Đảm bảo tính duy nhất
     },
     slug: {
       type: String,
@@ -18,16 +17,16 @@ const ProductSchema = mongoose.Schema(
       type: Number,
       required: true,
     },
-    imageUrl: {
+    image_url: {
       type: String,
       required: true,
     },
     // attributes: [
-    //   {
-    //     type: mongoose.Schema.Types.ObjectId,
-    //     ref: "Attributes",
-    //     required: true,
-    //   },
+    //     {
+    //         type: mongoose.Schema.Types.ObjectId,
+    //         ref: "Attribute",
+    //         required: true,
+    //     },
     // ],
     quantity: {
       type: Number,
@@ -46,8 +45,8 @@ const ProductSchema = mongoose.Schema(
       default: 0,
     },
     // category: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "Category",
+    //     type: mongoose.Schema.Types.ObjectId,
+    //     ref: "Category",
     // },
     tags: [String],
     sku: {
@@ -59,20 +58,9 @@ const ProductSchema = mongoose.Schema(
       default: true,
     },
   },
-  { timestamp: true, versionKey: false }
+  { timestamps: true, versionKey: false }
 );
 
-// Middleware để tự động tạo slug từ tên sản phẩm
-ProductSchema.pre("save", function (next) {
-  if (this.isModified("name")) {
-    this.slug = slugify(this.name, {
-      lower: true,
-      strict: true,
-    });
-  }
-  next();
-});
-
-// Thêm plugin mongoose-paginate-v2 để hỗ trợ phân trang
 ProductSchema.plugin(mongoosePaginate);
+
 export default mongoose.model("Product", ProductSchema);
