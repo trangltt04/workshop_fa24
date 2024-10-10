@@ -9,7 +9,7 @@ export const productSchema = Joi.object({
   description: Joi.string().optional(),
   rating: Joi.number().min(0).max(5).optional(),
   reviews: Joi.number().default(0).optional(),
-  // category: Joi.string().hex().length(24).optional(),
+  category: Joi.string().hex().length(24).optional(),
   tags: Joi.array().items(Joi.string()).optional(),
   sku: Joi.string().required(),
   status: Joi.boolean().default(true),
